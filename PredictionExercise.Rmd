@@ -1,6 +1,7 @@
 ---
 output:
-  html_document: default
+  html_document: 
+    keep_md: yes
   pdf_document: default
 ---
 
@@ -102,13 +103,13 @@ confusionMatrix(predictrf_test, test$classe)$overall[1]
 ```
 
 Estimate of error rate 0.22%
+
 - 100,00% Accuracy on train data - danger of overfitting!
 - 99,73% Accuracy on test data
 - A bit too good?
 
 ### Linear Discriminant Analysis
-To reduce the runtime GBM was only run for the most important variables of the previous models.
-```{r gbm, cache=TRUE}
+```{r lda, cache=TRUE}
 set.seed(317)
 modellda <- train(classe~.,data=train, method="lda")
 modellda
