@@ -1,0 +1,141 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+---
+
+# Prediction of the qualitiy of the quantified self
+
+## Overview
+One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 6 participants were asked to perform Unilateral Dumbbell Biceps Curls in 5 different ways: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E). More information is available from this [website](http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har).
+
+This analysis uses data from accelerometers on the belt, forearm, arm, and dumbell and aims to predict how well the participants did the exercise. After comparison of three models, the prediction model based on **Random Forests** results in the highest accuracy. 
+
+## Data
+
+### Description of data
+There is a data sample for training and test purposes and a validation sample available:
+
+### Load package and data
+```{r load, message=FALSE, CACHE=TRUE}
+library(caret)
+library(randomForest)
+library(rattle)
+
+urldata <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+download.file(urldata, "data.csv")
+data <- read.csv("data.csv",header=TRUE, sep=",")
+
+urlvalidation <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(urlvalidation, "validation.csv")
+validation <- read.csv("validation.csv",header=TRUE, sep=",")
+
+options(scipen=999)
+dim(data)
+dim(validation)
+```
+
+### Cleaning of data: Reducing variables
+```{r cleaning}
+#Dealing with NA: Change empty spaces and DIV/0 to be NA and remove variables that are mostly NA (threshlod 95 %)
+data[data == ""] <- NA
+data[data=="#DIV/0!"] <- NA
+data[data=="<NA>"] <- NA
+naVar <- sapply(data, function(x) mean(is.na(x))) > 0.95
+data <- data[ , naVar == FALSE]
+dim(data) #100 variables less
+
+#Dealing with NZ: remove variables that are near to zero
+nzVar <- nearZeroVar(data)
+data <- data[ , -nzVar]
+dim(data) #1 variable less
+
+#Skip five first columns - no predictors
+data <- data[ , -(1:5)]
+dim(data) #5 variables less
+```
+
+## Modelling
+
+### Preparation: Split in train and test segment
+```{r split}
+set.seed(317)
+in_train  <- createDataPartition(data$classe, p=0.75, list=FALSE)
+train <- data[ in_train, ]
+test  <- data[-in_train, ]
+dim(train)
+dim(test)
+```
+
+### Classification Tree
+```{r lm, cache=TRUE}
+set.seed(317)
+modelcart <- train(classe~.,data=train, method="rpart")
+modelcart
+varImp(modelcart)
+fancyRpartPlot(modelcart$finalModel)
+
+predictcart_train <- predict(modelcart,train)
+predictcart_test <- predict(modelcart,test)
+
+confusionMatrix(predictcart_train, train$classe)$overall[1]
+confusionMatrix(predictcart_test, test$classe)$overall[1]
+```
+
+- 49,37% Accuracy on train data
+- 50,10% Accuracy on test data
+- Not very satisfying.
+
+### Random Forest
+```{r rf, cache=TRUE}
+set.seed(317)
+modelrf <- randomForest(classe ~. , data=train, method="class")
+modelrf
+#varImp(modelrf)
+varImpPlot(modelrf,sort=TRUE,n.var=20)
+
+predictrf_train <- predict(modelrf, train)
+predictrf_test <- predict(modelrf, test)
+
+confusionMatrix(predictrf_train, train$classe)$overall[1]
+confusionMatrix(predictrf_test, test$classe)$overall[1]
+```
+
+Estimate of error rate 0.22%
+
+- 100,00% Accuracy on train data - danger of overfitting!
+- 99,73% Accuracy on test data
+- A bit too good?
+
+### Linear Discriminant Analysis
+```{r lda, cache=TRUE}
+set.seed(317)
+modellda <- train(classe~.,data=train, method="lda")
+modellda
+predictlda_train <- predict(modellda, train)
+predictlda_test <- predict(modellda, test)
+
+confusionMatrix(predictlda_train, train$classe)$overall[1]
+confusionMatrix(predictlda_test, test$classe)$overall[1]
+```
+
+- 71,92% Accuracy on train data
+- 71,15% Accuracy on test data
+- moderate
+
+### Summary
+The prediction model based on **Random Forests** results in the highest accuracy.
+The Random Forest model will be used to predict the validation set.
+
+```{r predictvalidation}
+#levels(validation$new_window) <- levels(train$new_window)
+predict(modelrf,validation)
+```
+
+
+### Software Environment
+```{r}
+sessionInfo()
+```
+
+This analysis was a project for the course "Machine Learning" from Johns Hopkins on Coursera.
